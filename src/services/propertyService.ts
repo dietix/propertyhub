@@ -1,130 +1,157 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-} from "firebase/firestore";
-import { db } from "../config/firebase";
+import { supabase } from "../config/supabase";
 import { Property } from "../types";
 
-const COLLECTION_NAME = "properties";
-
-// Cache local para evitar múltiplas requisições
-let propertiesCache: Property[] | null = null;
-let cacheTimestamp: number = 0;
-const CACHE_DURATION = 30000; // 30 segundos
-
-export async function getProperties(forceRefresh = false): Promise<Property[]> {
-  // Usar cache se disponível e não expirado
-  if (
-    !forceRefresh &&
-    propertiesCache &&
-    Date.now() - cacheTimestamp < CACHE_DURATION
-  ) {
-    return propertiesCache;
-  }
-
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    orderBy("createdAt", "desc"),
-    limit(100), // Limitar resultados
-  );
-  const snapshot = await getDocs(q);
-
-  propertiesCache = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-  })) as Property[];
-
-  cacheTimestamp = Date.now();
-  return propertiesCache;
+function mapDbToProperty(data: Record<string, unknown>): Property {
+  return {
+    id: data.id as string,
+    name: data.name as string,
+    address: data.address as string,
+    city: data.city as string,
+    state: data.state as string,
+    country: data.country as string,
+    zipCode: data.zip_code as string,
+    type: data.type as Property["type"],
+    bedrooms: data.bedrooms as number,
+    bathrooms: data.bathrooms as number,
+    maxGuests: data.max_guests as number,
+    amenities: (data.amenities as string[]) || [],
+    description: (data.description as string) || "",
+    basePrice: Number(data.base_price),
+    cleaningFee: Number(data.cleaning_fee) || 0,
+    images: (data.images as string[]) || [],
+    isActive: data.is_active as boolean,
+    ownerId: data.owner_id as string,
+    createdAt: new Date(data.created_at as string),
+    updatedAt: new Date(data.updated_at as string),
+  };
 }
 
-// Invalida o cache quando necessário
-export function invalidatePropertiesCache() {
-  propertiesCache = null;
-  cacheTimestamp = 0;
+export async function getProperties(): Promise<Property[]> {
+  const { data, error } = await supabase
+    .from("properties")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching properties:", error);
+    throw new Error(error.message);
+  }
+
+  return (data || []).map(mapDbToProperty);
 }
 
 export async function getPropertyById(id: string): Promise<Property | null> {
-  // Primeiro, verifica no cache
-  if (propertiesCache) {
-    const cached = propertiesCache.find((p) => p.id === id);
-    if (cached) return cached;
+  const { data, error } = await supabase
+    .from("properties")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null; // Not found
+    console.error("Error fetching property:", error);
+    throw new Error(error.message);
   }
 
-  const docRef = doc(db, COLLECTION_NAME, id);
-  const docSnap = await getDoc(docRef);
-
-  if (!docSnap.exists()) return null;
-
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    ...data,
-    createdAt: data.createdAt?.toDate?.() || new Date(),
-    updatedAt: data.updatedAt?.toDate?.() || new Date(),
-  } as Property;
+  return data ? mapDbToProperty(data) : null;
 }
 
 export async function createProperty(
   property: Omit<Property, "id" | "createdAt" | "updatedAt">,
 ): Promise<string> {
-  const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-    ...property,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  });
-  invalidatePropertiesCache(); // Invalida cache após criação
-  return docRef.id;
+  const { data, error } = await supabase
+    .from("properties")
+    .insert({
+      name: property.name,
+      address: property.address,
+      city: property.city,
+      state: property.state,
+      country: property.country,
+      zip_code: property.zipCode,
+      type: property.type,
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      max_guests: property.maxGuests,
+      amenities: property.amenities,
+      description: property.description,
+      base_price: property.basePrice,
+      cleaning_fee: property.cleaningFee,
+      images: property.images,
+      is_active: property.isActive,
+      owner_id: property.ownerId,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error creating property:", error);
+    throw new Error(error.message);
+  }
+
+  return data.id;
 }
 
 export async function updateProperty(
   id: string,
   property: Partial<Property>,
 ): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, id);
-  await updateDoc(docRef, {
-    ...property,
-    updatedAt: Timestamp.now(),
-  });
-  invalidatePropertiesCache(); // Invalida cache após atualização
+  const updateData: Record<string, unknown> = {};
+
+  if (property.name !== undefined) updateData.name = property.name;
+  if (property.address !== undefined) updateData.address = property.address;
+  if (property.city !== undefined) updateData.city = property.city;
+  if (property.state !== undefined) updateData.state = property.state;
+  if (property.country !== undefined) updateData.country = property.country;
+  if (property.zipCode !== undefined) updateData.zip_code = property.zipCode;
+  if (property.type !== undefined) updateData.type = property.type;
+  if (property.bedrooms !== undefined) updateData.bedrooms = property.bedrooms;
+  if (property.bathrooms !== undefined)
+    updateData.bathrooms = property.bathrooms;
+  if (property.maxGuests !== undefined)
+    updateData.max_guests = property.maxGuests;
+  if (property.amenities !== undefined)
+    updateData.amenities = property.amenities;
+  if (property.description !== undefined)
+    updateData.description = property.description;
+  if (property.basePrice !== undefined)
+    updateData.base_price = property.basePrice;
+  if (property.cleaningFee !== undefined)
+    updateData.cleaning_fee = property.cleaningFee;
+  if (property.images !== undefined) updateData.images = property.images;
+  if (property.isActive !== undefined) updateData.is_active = property.isActive;
+  if (property.ownerId !== undefined) updateData.owner_id = property.ownerId;
+
+  const { error } = await supabase
+    .from("properties")
+    .update(updateData)
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error updating property:", error);
+    throw new Error(error.message);
+  }
 }
 
 export async function deleteProperty(id: string): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, id);
-  await deleteDoc(docRef);
-  invalidatePropertiesCache(); // Invalida cache após exclusão
+  const { error } = await supabase.from("properties").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error deleting property:", error);
+    throw new Error(error.message);
+  }
 }
 
 export async function getActiveProperties(): Promise<Property[]> {
-  // Usar cache se disponível
-  if (propertiesCache) {
-    return propertiesCache.filter((p) => p.isActive);
+  const { data, error } = await supabase
+    .from("properties")
+    .select("*")
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) {
+    console.error("Error fetching active properties:", error);
+    throw new Error(error.message);
   }
 
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    where("isActive", "==", true),
-    orderBy("name"),
-    limit(100),
-  );
-  const snapshot = await getDocs(q);
-
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-  })) as Property[];
+  return (data || []).map(mapDbToProperty);
 }

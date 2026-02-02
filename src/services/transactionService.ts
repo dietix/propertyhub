@@ -1,172 +1,171 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-} from "firebase/firestore";
-import { db } from "../config/firebase";
+import { supabase } from "../config/supabase";
 import { Transaction, TransactionType } from "../types";
 
-const COLLECTION_NAME = "transactions";
-
-// Cache local para transações
-let transactionsCache: Transaction[] | null = null;
-let cacheTimestamp: number = 0;
-const CACHE_DURATION = 30000; // 30 segundos
-
-function isCacheValid(): boolean {
-  return (
-    transactionsCache !== null && Date.now() - cacheTimestamp < CACHE_DURATION
-  );
-}
-
-export function invalidateTransactionsCache(): void {
-  transactionsCache = null;
-  cacheTimestamp = 0;
+function mapDbToTransaction(data: Record<string, unknown>): Transaction {
+  return {
+    id: data.id as string,
+    propertyId: data.property_id as string,
+    reservationId: (data.reservation_id as string) || undefined,
+    type: data.type as TransactionType,
+    category: data.category as Transaction["category"],
+    amount: Number(data.amount),
+    description: (data.description as string) || "",
+    date: new Date(data.date as string),
+    createdAt: new Date(data.created_at as string),
+    updatedAt: new Date(data.updated_at as string),
+  };
 }
 
 export async function getTransactions(): Promise<Transaction[]> {
-  // Retorna cache se válido
-  if (isCacheValid()) {
-    return transactionsCache!;
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching transactions:", error);
+    throw new Error(error.message);
   }
 
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    orderBy("date", "desc"),
-    limit(500), // Limita para evitar carregar muitos documentos
-  );
-  const snapshot = await getDocs(q);
-
-  const transactions = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    date: doc.data().date?.toDate?.() || new Date(),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-  })) as Transaction[];
-
-  // Atualiza o cache
-  transactionsCache = transactions;
-  cacheTimestamp = Date.now();
-
-  return transactions;
+  return (data || []).map(mapDbToTransaction);
 }
 
 export async function getTransactionById(
   id: string,
 ): Promise<Transaction | null> {
-  // Tenta buscar do cache primeiro
-  if (isCacheValid()) {
-    const cached = transactionsCache!.find((t) => t.id === id);
-    if (cached) return cached;
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    console.error("Error fetching transaction:", error);
+    throw new Error(error.message);
   }
 
-  const docRef = doc(db, COLLECTION_NAME, id);
-  const docSnap = await getDoc(docRef);
-
-  if (!docSnap.exists()) return null;
-
-  const data = docSnap.data();
-  return {
-    id: docSnap.id,
-    ...data,
-    date: data.date?.toDate?.() || new Date(),
-    createdAt: data.createdAt?.toDate?.() || new Date(),
-    updatedAt: data.updatedAt?.toDate?.() || new Date(),
-  } as Transaction;
+  return data ? mapDbToTransaction(data) : null;
 }
 
 export async function getTransactionsByProperty(
   propertyId: string,
 ): Promise<Transaction[]> {
-  // Usa cache se disponível
-  if (isCacheValid()) {
-    return transactionsCache!.filter((t) => t.propertyId === propertyId);
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("property_id", propertyId)
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching transactions by property:", error);
+    throw new Error(error.message);
   }
 
-  // Carrega todas as transações no cache e filtra
-  const allTransactions = await getTransactions();
-  return allTransactions.filter((t) => t.propertyId === propertyId);
+  return (data || []).map(mapDbToTransaction);
 }
 
 export async function getTransactionsByType(
   type: TransactionType,
 ): Promise<Transaction[]> {
-  // Usa cache se disponível
-  if (isCacheValid()) {
-    return transactionsCache!.filter((t) => t.type === type);
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("type", type)
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching transactions by type:", error);
+    throw new Error(error.message);
   }
 
-  // Carrega todas as transações no cache e filtra
-  const allTransactions = await getTransactions();
-  return allTransactions.filter((t) => t.type === type);
+  return (data || []).map(mapDbToTransaction);
 }
 
 export async function getTransactionsByDateRange(
   start: Date,
   end: Date,
 ): Promise<Transaction[]> {
-  // Usa cache se disponível
-  if (isCacheValid()) {
-    return transactionsCache!.filter((t) => {
-      const transactionDate = new Date(t.date);
-      return transactionDate >= start && transactionDate <= end;
-    });
+  const startStr = start.toISOString().split("T")[0];
+  const endStr = end.toISOString().split("T")[0];
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .gte("date", startStr)
+    .lte("date", endStr)
+    .order("date", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching transactions by date range:", error);
+    throw new Error(error.message);
   }
 
-  // Carrega todas as transações no cache e filtra
-  const allTransactions = await getTransactions();
-  return allTransactions.filter((t) => {
-    const transactionDate = new Date(t.date);
-    return transactionDate >= start && transactionDate <= end;
-  });
+  return (data || []).map(mapDbToTransaction);
 }
 
 export async function createTransaction(
   transaction: Omit<Transaction, "id" | "createdAt" | "updatedAt">,
 ): Promise<string> {
-  const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-    ...transaction,
-    date: Timestamp.fromDate(new Date(transaction.date)),
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  });
+  const { data, error } = await supabase
+    .from("transactions")
+    .insert({
+      property_id: transaction.propertyId,
+      reservation_id: transaction.reservationId || null,
+      type: transaction.type,
+      category: transaction.category,
+      amount: transaction.amount,
+      description: transaction.description,
+      date: new Date(transaction.date).toISOString().split("T")[0],
+    })
+    .select("id")
+    .single();
 
-  invalidateTransactionsCache();
-  return docRef.id;
+  if (error) {
+    console.error("Error creating transaction:", error);
+    throw new Error(error.message);
+  }
+
+  return data.id;
 }
 
 export async function updateTransaction(
   id: string,
   transaction: Partial<Transaction>,
 ): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, id);
-  const updateData: Record<string, unknown> = {
-    ...transaction,
-    updatedAt: Timestamp.now(),
-  };
+  const updateData: Record<string, unknown> = {};
 
-  if (transaction.date) {
-    updateData.date = Timestamp.fromDate(new Date(transaction.date));
+  if (transaction.propertyId !== undefined)
+    updateData.property_id = transaction.propertyId;
+  if (transaction.reservationId !== undefined)
+    updateData.reservation_id = transaction.reservationId || null;
+  if (transaction.type !== undefined) updateData.type = transaction.type;
+  if (transaction.category !== undefined)
+    updateData.category = transaction.category;
+  if (transaction.amount !== undefined) updateData.amount = transaction.amount;
+  if (transaction.description !== undefined)
+    updateData.description = transaction.description;
+  if (transaction.date !== undefined)
+    updateData.date = new Date(transaction.date).toISOString().split("T")[0];
+
+  const { error } = await supabase
+    .from("transactions")
+    .update(updateData)
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error updating transaction:", error);
+    throw new Error(error.message);
   }
-
-  await updateDoc(docRef, updateData);
-  invalidateTransactionsCache();
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, id);
-  await deleteDoc(docRef);
-  invalidateTransactionsCache();
+  const { error } = await supabase.from("transactions").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error deleting transaction:", error);
+    throw new Error(error.message);
+  }
 }
 
 // Financial summary helpers

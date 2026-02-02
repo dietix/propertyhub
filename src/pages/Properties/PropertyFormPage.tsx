@@ -82,7 +82,7 @@ export default function PropertyFormPage() {
         amenities,
         images: [],
         isActive: true,
-        ownerId: currentUser?.uid || '',
+        ownerId: currentUser?.id || '',
       });
       navigate('/properties');
     } catch (error) {

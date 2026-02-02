@@ -138,6 +138,17 @@ export interface FinancialReport {
   };
 }
 
+// Date Block types
+export interface DateBlock {
+  id: string;
+  propertyId: string;
+  startDate: Date;
+  endDate: Date;
+  reason: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Calendar types
 export interface CalendarEvent {
   id: string;

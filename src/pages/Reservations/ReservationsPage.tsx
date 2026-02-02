@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Calendar, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Calendar, Filter, ChevronLeft, ChevronRight, Trash2, Lock, X } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Card, CardHeader, Button, Input, Badge, Select, Modal } from '../../components/UI';
-import { Reservation, Property, ReservationStatus, ReservationSource } from '../../types';
+import { Reservation, Property, ReservationStatus, ReservationSource, DateBlock } from '../../types';
 import { getReservations, updateReservationStatus, deleteReservation } from '../../services/reservationService';
 import { getProperties } from '../../services/propertyService';
+import { getDateBlocks, createDateBlock, deleteDateBlock } from '../../services/dateBlockService';
 
 export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [dateBlocks, setDateBlocks] = useState<DateBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProperty, setSelectedProperty] = useState('');
@@ -21,6 +23,25 @@ export default function ReservationsPage() {
     isOpen: false,
     reservation: null,
   });
+  const [blockModal, setBlockModal] = useState<{ isOpen: boolean; dateBlock: DateBlock | null }>({
+    isOpen: false,
+    dateBlock: null,
+  });
+  const [newBlockModal, setNewBlockModal] = useState(false);
+  const [newBlock, setNewBlock] = useState({
+    propertyId: '',
+    startDate: '',
+    endDate: '',
+    reason: '',
+  });
+  
+  // Filtros de data - mês atual como padrão
+  const [startDateFilter, setStartDateFilter] = useState(() => {
+    return format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  });
+  const [endDateFilter, setEndDateFilter] = useState(() => {
+    return format(endOfMonth(new Date()), 'yyyy-MM-dd');
+  });
 
   useEffect(() => {
     fetchData();
@@ -28,12 +49,14 @@ export default function ReservationsPage() {
 
   async function fetchData() {
     try {
-      const [reservationsData, propertiesData] = await Promise.all([
+      const [reservationsData, propertiesData, dateBlocksData] = await Promise.all([
         getReservations(),
         getProperties(),
+        getDateBlocks(),
       ]);
       setReservations(reservationsData);
       setProperties(propertiesData);
+      setDateBlocks(dateBlocksData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -47,7 +70,15 @@ export default function ReservationsPage() {
       reservation.guestEmail.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesProperty = !selectedProperty || reservation.propertyId === selectedProperty;
     const matchesStatus = !selectedStatus || reservation.status === selectedStatus;
-    return matchesSearch && matchesProperty && matchesStatus;
+    
+    // Filtro de data
+    const checkIn = new Date(reservation.checkIn);
+    const start = new Date(startDateFilter);
+    const end = new Date(endDateFilter);
+    end.setHours(23, 59, 59, 999);
+    const matchesDate = checkIn >= start && checkIn <= end;
+    
+    return matchesSearch && matchesProperty && matchesStatus && matchesDate;
   });
 
   const getStatusBadge = (status: ReservationStatus) => {
@@ -108,6 +139,47 @@ export default function ReservationsPage() {
     }
   }
 
+  async function handleCreateBlock() {
+    if (!newBlock.propertyId || !newBlock.startDate || !newBlock.endDate) return;
+
+    try {
+      const id = await createDateBlock({
+        propertyId: newBlock.propertyId,
+        startDate: new Date(newBlock.startDate),
+        endDate: new Date(newBlock.endDate),
+        reason: newBlock.reason,
+      });
+      
+      const newDateBlock: DateBlock = {
+        id,
+        propertyId: newBlock.propertyId,
+        startDate: new Date(newBlock.startDate),
+        endDate: new Date(newBlock.endDate),
+        reason: newBlock.reason,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      setDateBlocks([...dateBlocks, newDateBlock]);
+      setNewBlockModal(false);
+      setNewBlock({ propertyId: '', startDate: '', endDate: '', reason: '' });
+    } catch (error) {
+      console.error('Error creating date block:', error);
+    }
+  }
+
+  async function handleDeleteBlock() {
+    if (!blockModal.dateBlock) return;
+
+    try {
+      await deleteDateBlock(blockModal.dateBlock.id);
+      setDateBlocks(dateBlocks.filter((b) => b.id !== blockModal.dateBlock!.id));
+      setBlockModal({ isOpen: false, dateBlock: null });
+    } catch (error) {
+      console.error('Error deleting date block:', error);
+    }
+  }
+
   // Calendar helpers
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -121,6 +193,20 @@ export default function ReservationsPage() {
              isSameDay(day, checkIn) || 
              isSameDay(day, checkOut);
     });
+  };
+
+  const getBlocksForDay = (day: Date) => {
+    return dateBlocks.filter((block) => {
+      const start = new Date(block.startDate);
+      const end = new Date(block.endDate);
+      return isWithinInterval(day, { start, end }) || 
+             isSameDay(day, start) || 
+             isSameDay(day, end);
+    });
+  };
+
+  const isDayBlocked = (day: Date) => {
+    return getBlocksForDay(day).length > 0;
   };
 
   if (loading) {
@@ -158,6 +244,13 @@ export default function ReservationsPage() {
               Calendário
             </button>
           </div>
+          <Button 
+            variant="outline" 
+            leftIcon={<Lock className="w-4 h-4" />}
+            onClick={() => setNewBlockModal(true)}
+          >
+            Bloquear Datas
+          </Button>
           <Link to="/reservations/new">
             <Button leftIcon={<Plus className="w-4 h-4" />}>Nova Reserva</Button>
           </Link>
@@ -176,7 +269,23 @@ export default function ReservationsPage() {
               className="border-0 focus:ring-0"
             />
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <Input
+                type="date"
+                value={startDateFilter}
+                onChange={(e) => setStartDateFilter(e.target.value)}
+                className="w-40"
+              />
+              <span className="text-gray-400">até</span>
+              <Input
+                type="date"
+                value={endDateFilter}
+                onChange={(e) => setEndDateFilter(e.target.value)}
+                className="w-40"
+              />
+            </div>
             <Select
               options={[
                 { value: '', label: 'Todas propriedades' },
@@ -232,7 +341,7 @@ export default function ReservationsPage() {
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Origem</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Status</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Total</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Ações</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -257,18 +366,27 @@ export default function ReservationsPage() {
                           R$ {reservation.totalAmount.toLocaleString('pt-BR')}
                         </td>
                         <td className="py-3 px-4">
-                          <Select
-                            options={[
-                              { value: 'pending', label: 'Pendente' },
-                              { value: 'confirmed', label: 'Confirmada' },
-                              { value: 'checked-in', label: 'Check-in' },
-                              { value: 'checked-out', label: 'Check-out' },
-                              { value: 'cancelled', label: 'Cancelada' },
-                            ]}
-                            value={reservation.status}
-                            onChange={(e) => handleStatusChange(reservation.id, e.target.value as ReservationStatus)}
-                            className="w-32 text-sm"
-                          />
+                          <div className="flex items-center justify-center gap-2">
+                            <Select
+                              options={[
+                                { value: 'pending', label: 'Pendente' },
+                                { value: 'confirmed', label: 'Confirmada' },
+                                { value: 'checked-in', label: 'Check-in' },
+                                { value: 'checked-out', label: 'Check-out' },
+                                { value: 'cancelled', label: 'Cancelada' },
+                              ]}
+                              value={reservation.status}
+                              onChange={(e) => handleStatusChange(reservation.id, e.target.value as ReservationStatus)}
+                              className="w-32 text-sm"
+                            />
+                            <button
+                              onClick={() => setDeleteModal({ isOpen: true, reservation })}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Excluir reserva"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -311,21 +429,34 @@ export default function ReservationsPage() {
             ))}
             {daysInMonth.map((day, idx) => {
               const dayReservations = getReservationsForDay(day);
+              const dayBlocks = getBlocksForDay(day);
               const isCurrentMonth = isSameMonth(day, currentMonth);
               const isToday = isSameDay(day, new Date());
+              const isBlocked = dayBlocks.length > 0;
 
               return (
                 <div
                   key={idx}
                   className={`min-h-24 p-1 border border-gray-100 rounded-lg ${
                     !isCurrentMonth ? 'bg-gray-50' : ''
-                  } ${isToday ? 'ring-2 ring-[#FF5A5F]' : ''}`}
+                  } ${isToday ? 'ring-2 ring-[#FF5A5F]' : ''} ${isBlocked ? 'bg-gray-200' : ''}`}
                 >
                   <div className={`text-sm font-medium mb-1 ${isToday ? 'text-[#FF5A5F]' : 'text-gray-600'}`}>
                     {format(day, 'd')}
                   </div>
                   <div className="space-y-1">
-                    {dayReservations.slice(0, 2).map((reservation) => (
+                    {dayBlocks.slice(0, 1).map((block) => (
+                      <div
+                        key={block.id}
+                        className="text-xs p-1 bg-gray-600 text-white rounded truncate cursor-pointer flex items-center gap-1"
+                        title={`Bloqueado: ${block.reason || 'Sem motivo'}`}
+                        onClick={() => setBlockModal({ isOpen: true, dateBlock: block })}
+                      >
+                        <Lock className="w-3 h-3" />
+                        {block.reason || 'Bloqueado'}
+                      </div>
+                    ))}
+                    {dayReservations.slice(0, isBlocked ? 1 : 2).map((reservation) => (
                       <div
                         key={reservation.id}
                         className="text-xs p-1 bg-[#FF5A5F]/10 text-[#FF5A5F] rounded truncate"
@@ -334,8 +465,8 @@ export default function ReservationsPage() {
                         {reservation.guestName}
                       </div>
                     ))}
-                    {dayReservations.length > 2 && (
-                      <div className="text-xs text-gray-500">+{dayReservations.length - 2} mais</div>
+                    {(dayReservations.length + dayBlocks.length) > 2 && (
+                      <div className="text-xs text-gray-500">+{dayReservations.length + dayBlocks.length - 2} mais</div>
                     )}
                   </div>
                 </div>
@@ -362,6 +493,86 @@ export default function ReservationsPage() {
           </Button>
           <Button variant="danger" onClick={handleDelete}>
             Excluir
+          </Button>
+        </div>
+      </Modal>
+
+      {/* New Block Modal */}
+      <Modal
+        isOpen={newBlockModal}
+        onClose={() => setNewBlockModal(false)}
+        title="Bloquear Datas"
+        size="md"
+      >
+        <div className="space-y-4">
+          <Select
+            label="Propriedade"
+            options={[
+              { value: '', label: 'Selecione uma propriedade' },
+              ...properties.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+            value={newBlock.propertyId}
+            onChange={(e) => setNewBlock({ ...newBlock, propertyId: e.target.value })}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Data Início"
+              type="date"
+              value={newBlock.startDate}
+              onChange={(e) => setNewBlock({ ...newBlock, startDate: e.target.value })}
+            />
+            <Input
+              label="Data Fim"
+              type="date"
+              value={newBlock.endDate}
+              onChange={(e) => setNewBlock({ ...newBlock, endDate: e.target.value })}
+            />
+          </div>
+          <Input
+            label="Motivo (opcional)"
+            value={newBlock.reason}
+            onChange={(e) => setNewBlock({ ...newBlock, reason: e.target.value })}
+            placeholder="Ex: Manutenção, Uso pessoal..."
+          />
+        </div>
+        <div className="flex gap-3 justify-end mt-6">
+          <Button variant="outline" onClick={() => setNewBlockModal(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleCreateBlock} disabled={!newBlock.propertyId || !newBlock.startDate || !newBlock.endDate}>
+            Bloquear
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Delete Block Modal */}
+      <Modal
+        isOpen={blockModal.isOpen}
+        onClose={() => setBlockModal({ isOpen: false, dateBlock: null })}
+        title="Detalhes do Bloqueio"
+        size="sm"
+      >
+        {blockModal.dateBlock && (
+          <div className="space-y-3 mb-6">
+            <p className="text-gray-600">
+              <strong>Propriedade:</strong> {getPropertyName(blockModal.dateBlock.propertyId)}
+            </p>
+            <p className="text-gray-600">
+              <strong>Período:</strong> {format(new Date(blockModal.dateBlock.startDate), 'dd/MM/yyyy')} até {format(new Date(blockModal.dateBlock.endDate), 'dd/MM/yyyy')}
+            </p>
+            {blockModal.dateBlock.reason && (
+              <p className="text-gray-600">
+                <strong>Motivo:</strong> {blockModal.dateBlock.reason}
+              </p>
+            )}
+          </div>
+        )}
+        <div className="flex gap-3 justify-end">
+          <Button variant="outline" onClick={() => setBlockModal({ isOpen: false, dateBlock: null })}>
+            Fechar
+          </Button>
+          <Button variant="danger" onClick={handleDeleteBlock}>
+            Remover Bloqueio
           </Button>
         </div>
       </Modal>

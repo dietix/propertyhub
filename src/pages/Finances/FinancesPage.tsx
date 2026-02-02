@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, TrendingUp, TrendingDown, DollarSign, Filter } from 'lucide-react';
-import { format } from 'date-fns';
+import { Plus, Search, TrendingUp, TrendingDown, DollarSign, Filter, Trash2, Calendar } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Card, CardHeader, Button, Input, Badge, Select, Modal } from '../../components/UI';
 import { Transaction, TransactionType, Property } from '../../types';
@@ -30,6 +30,14 @@ export default function FinancesPage() {
     isOpen: false,
     transaction: null,
   });
+  
+  // Filtros de data - mês atual como padrão
+  const [startDate, setStartDate] = useState(() => {
+    return format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  });
+  const [endDate, setEndDate] = useState(() => {
+    return format(endOfMonth(new Date()), 'yyyy-MM-dd');
+  });
 
   useEffect(() => {
     fetchData();
@@ -54,7 +62,15 @@ export default function FinancesPage() {
     const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = !selectedType || transaction.type === selectedType;
     const matchesProperty = !selectedProperty || transaction.propertyId === selectedProperty;
-    return matchesSearch && matchesType && matchesProperty;
+    
+    // Filtro de data
+    const transactionDate = new Date(transaction.date);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    const matchesDate = isWithinInterval(transactionDate, { start, end });
+    
+    return matchesSearch && matchesType && matchesProperty && matchesDate;
   });
 
   // Calculate totals
@@ -274,7 +290,23 @@ export default function FinancesPage() {
               className="border-0 focus:ring-0"
             />
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-40"
+              />
+              <span className="text-gray-400">até</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-40"
+              />
+            </div>
             <Select
               options={[
                 { value: '', label: 'Todos tipos' },
@@ -324,6 +356,7 @@ export default function FinancesPage() {
                   <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Categoria</th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Tipo</th>
                   <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Valor</th>
+                  <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -350,6 +383,15 @@ export default function FinancesPage() {
                       transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {transaction.type === 'income' ? '+' : '-'} R$ {transaction.amount.toLocaleString('pt-BR')}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={() => setDeleteModal({ isOpen: true, transaction })}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Excluir transação"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}

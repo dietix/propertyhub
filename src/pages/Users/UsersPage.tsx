@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, Badge, Button, Modal, Select } from '../../components/UI';
 import { User, UserRole } from '../../types';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 import { Users, Shield, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -21,12 +20,20 @@ export default function UsersPage() {
 
   async function fetchUsers() {
     try {
-      const snapshot = await getDocs(collection(db, 'users'));
-      const usersData = snapshot.docs.map((doc) => ({
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const usersData = (data || []).map((doc) => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
+        email: doc.email,
+        displayName: doc.display_name,
+        role: doc.role as UserRole,
+        createdAt: new Date(doc.created_at),
+        updatedAt: new Date(doc.updated_at),
       })) as User[];
       setUsers(usersData);
     } catch (error) {
@@ -40,8 +47,13 @@ export default function UsersPage() {
     if (!editModal.user) return;
 
     try {
-      const userRef = doc(db, 'users', editModal.user.id);
-      await updateDoc(userRef, { role: selectedRole });
+      const { error } = await supabase
+        .from('users')
+        .update({ role: selectedRole })
+        .eq('id', editModal.user.id);
+
+      if (error) throw error;
+
       setUsers(users.map((u) => (u.id === editModal.user!.id ? { ...u, role: selectedRole } : u)));
       setEditModal({ isOpen: false, user: null });
     } catch (error) {
