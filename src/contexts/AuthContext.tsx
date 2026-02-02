@@ -149,37 +149,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   useEffect(() => {
-    // Busca sessão inicial
+    async function handleSessionChange(nextSession: Session | null) {
+      setSession(nextSession);
+      setCurrentUser(nextSession?.user ?? null);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-  console.log('aqui', session)
-
-      setSession(session);
-      setCurrentUser(session?.user ?? null);
-
-      if (session?.user) {
-        fetchOrCreateUserData(session.user).then((data) => {
-          setUserData(data);
-          setLoading(false);
-        });
+      if (nextSession?.user) {
+        const data = await fetchOrCreateUserData(nextSession.user);
+        setUserData(data);
       } else {
-        setLoading(false);
+        setUserData(null);
       }
+    }
+
+    // Busca sessão inicial
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleSessionChange(session).finally(() => setLoading(false));
     });
 
     // Escuta mudanças de autenticação
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setCurrentUser(session?.user ?? null);
-
-      if (session?.user) {
-        const data = await fetchOrCreateUserData(session.user);
-        setUserData(data);
-      } else {
-        setUserData(null);
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Se o refresh falhar e o token vier vazio, faz sign out para evitar requests sem token
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        await logout();
+        return;
       }
+
+      await handleSessionChange(session);
     });
 
     return () => subscription.unsubscribe();
