@@ -1,0 +1,370 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Plus, Search, Calendar, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval, addMonths, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Card, CardHeader, Button, Input, Badge, Select, Modal } from '../../components/UI';
+import { Reservation, Property, ReservationStatus, ReservationSource } from '../../types';
+import { getReservations, updateReservationStatus, deleteReservation } from '../../services/reservationService';
+import { getProperties } from '../../services/propertyService';
+
+export default function ReservationsPage() {
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProperty, setSelectedProperty] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; reservation: Reservation | null }>({
+    isOpen: false,
+    reservation: null,
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    try {
+      const [reservationsData, propertiesData] = await Promise.all([
+        getReservations(),
+        getProperties(),
+      ]);
+      setReservations(reservationsData);
+      setProperties(propertiesData);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const filteredReservations = reservations.filter((reservation) => {
+    const matchesSearch =
+      reservation.guestName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reservation.guestEmail.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesProperty = !selectedProperty || reservation.propertyId === selectedProperty;
+    const matchesStatus = !selectedStatus || reservation.status === selectedStatus;
+    return matchesSearch && matchesProperty && matchesStatus;
+  });
+
+  const getStatusBadge = (status: ReservationStatus) => {
+    const statusConfig: Record<ReservationStatus, { label: string; variant: 'success' | 'warning' | 'error' | 'info' }> = {
+      pending: { label: 'Pendente', variant: 'warning' },
+      confirmed: { label: 'Confirmada', variant: 'success' },
+      'checked-in': { label: 'Check-in', variant: 'info' },
+      'checked-out': { label: 'Check-out', variant: 'info' },
+      cancelled: { label: 'Cancelada', variant: 'error' },
+    };
+    const config = statusConfig[status];
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const getSourceBadge = (source: ReservationSource) => {
+    const sourceConfig: Record<ReservationSource, { label: string; color: string }> = {
+      airbnb: { label: 'Airbnb', color: 'bg-[#FF5A5F]' },
+      booking: { label: 'Booking', color: 'bg-blue-600' },
+      vrbo: { label: 'VRBO', color: 'bg-purple-600' },
+      direct: { label: 'Direto', color: 'bg-green-600' },
+      other: { label: 'Outro', color: 'bg-gray-600' },
+    };
+    const config = sourceConfig[source];
+    return (
+      <span className={`px-2 py-0.5 text-xs font-medium text-white rounded ${config.color}`}>
+        {config.label}
+      </span>
+    );
+  };
+
+  const getPropertyName = (propertyId: string) => {
+    const property = properties.find((p) => p.id === propertyId);
+    return property?.name || 'Propriedade não encontrada';
+  };
+
+  async function handleStatusChange(reservationId: string, newStatus: ReservationStatus) {
+    try {
+      await updateReservationStatus(reservationId, newStatus);
+      setReservations(
+        reservations.map((r) =>
+          r.id === reservationId ? { ...r, status: newStatus } : r
+        )
+      );
+    } catch (error) {
+      console.error('Error updating reservation status:', error);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteModal.reservation) return;
+
+    try {
+      await deleteReservation(deleteModal.reservation.id);
+      setReservations(reservations.filter((r) => r.id !== deleteModal.reservation!.id));
+      setDeleteModal({ isOpen: false, reservation: null });
+    } catch (error) {
+      console.error('Error deleting reservation:', error);
+    }
+  }
+
+  // Calendar helpers
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+  const getReservationsForDay = (day: Date) => {
+    return filteredReservations.filter((reservation) => {
+      const checkIn = new Date(reservation.checkIn);
+      const checkOut = new Date(reservation.checkOut);
+      return isWithinInterval(day, { start: checkIn, end: checkOut }) || 
+             isSameDay(day, checkIn) || 
+             isSameDay(day, checkOut);
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF5A5F]"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Reservas</h1>
+          <p className="text-gray-500 mt-1">Gerencie todas as reservas</p>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                viewMode === 'list' ? 'bg-white shadow text-gray-800' : 'text-gray-600'
+              }`}
+            >
+              Lista
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                viewMode === 'calendar' ? 'bg-white shadow text-gray-800' : 'text-gray-600'
+              }`}
+            >
+              Calendário
+            </button>
+          </div>
+          <Link to="/reservations/new">
+            <Button leftIcon={<Plus className="w-4 h-4" />}>Nova Reserva</Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 flex items-center gap-3">
+            <Search className="w-5 h-5 text-gray-400" />
+            <Input
+              placeholder="Buscar por hóspede ou email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border-0 focus:ring-0"
+            />
+          </div>
+          <div className="flex gap-3">
+            <Select
+              options={[
+                { value: '', label: 'Todas propriedades' },
+                ...properties.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+              value={selectedProperty}
+              onChange={(e) => setSelectedProperty(e.target.value)}
+              className="w-48"
+            />
+            <Select
+              options={[
+                { value: '', label: 'Todos status' },
+                { value: 'pending', label: 'Pendente' },
+                { value: 'confirmed', label: 'Confirmada' },
+                { value: 'checked-in', label: 'Check-in' },
+                { value: 'checked-out', label: 'Check-out' },
+                { value: 'cancelled', label: 'Cancelada' },
+              ]}
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-40"
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* List View */}
+      {viewMode === 'list' && (
+        <>
+          {filteredReservations.length === 0 ? (
+            <Card className="text-center py-12">
+              <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhuma reserva encontrada</h3>
+              <p className="text-gray-500 mb-4">
+                {searchTerm || selectedProperty || selectedStatus
+                  ? 'Tente ajustar seus filtros'
+                  : 'Comece adicionando sua primeira reserva'}
+              </p>
+              <Link to="/reservations/new">
+                <Button>Adicionar Reserva</Button>
+              </Link>
+            </Card>
+          ) : (
+            <Card padding="none">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Hóspede</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Propriedade</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Check-in</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Check-out</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Origem</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Total</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReservations.map((reservation) => (
+                      <tr key={reservation.id} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <p className="font-medium text-gray-800">{reservation.guestName}</p>
+                          <p className="text-sm text-gray-500">{reservation.guestEmail}</p>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {getPropertyName(reservation.propertyId)}
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {format(new Date(reservation.checkIn), 'dd/MM/yyyy')}
+                        </td>
+                        <td className="py-3 px-4 text-gray-600">
+                          {format(new Date(reservation.checkOut), 'dd/MM/yyyy')}
+                        </td>
+                        <td className="py-3 px-4">{getSourceBadge(reservation.source)}</td>
+                        <td className="py-3 px-4">{getStatusBadge(reservation.status)}</td>
+                        <td className="py-3 px-4 font-medium text-gray-800">
+                          R$ {reservation.totalAmount.toLocaleString('pt-BR')}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Select
+                            options={[
+                              { value: 'pending', label: 'Pendente' },
+                              { value: 'confirmed', label: 'Confirmada' },
+                              { value: 'checked-in', label: 'Check-in' },
+                              { value: 'checked-out', label: 'Check-out' },
+                              { value: 'cancelled', label: 'Cancelada' },
+                            ]}
+                            value={reservation.status}
+                            onChange={(e) => handleStatusChange(reservation.id, e.target.value as ReservationStatus)}
+                            className="w-32 text-sm"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <Card>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-800">
+              {format(currentMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+            </h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+              <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
+                {day}
+              </div>
+            ))}
+            {daysInMonth.map((day, idx) => {
+              const dayReservations = getReservationsForDay(day);
+              const isCurrentMonth = isSameMonth(day, currentMonth);
+              const isToday = isSameDay(day, new Date());
+
+              return (
+                <div
+                  key={idx}
+                  className={`min-h-24 p-1 border border-gray-100 rounded-lg ${
+                    !isCurrentMonth ? 'bg-gray-50' : ''
+                  } ${isToday ? 'ring-2 ring-[#FF5A5F]' : ''}`}
+                >
+                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-[#FF5A5F]' : 'text-gray-600'}`}>
+                    {format(day, 'd')}
+                  </div>
+                  <div className="space-y-1">
+                    {dayReservations.slice(0, 2).map((reservation) => (
+                      <div
+                        key={reservation.id}
+                        className="text-xs p-1 bg-[#FF5A5F]/10 text-[#FF5A5F] rounded truncate"
+                        title={reservation.guestName}
+                      >
+                        {reservation.guestName}
+                      </div>
+                    ))}
+                    {dayReservations.length > 2 && (
+                      <div className="text-xs text-gray-500">+{dayReservations.length - 2} mais</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* Delete Modal */}
+      <Modal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, reservation: null })}
+        title="Excluir Reserva"
+        size="sm"
+      >
+        <p className="text-gray-600 mb-6">
+          Tem certeza que deseja excluir a reserva de <strong>{deleteModal.reservation?.guestName}</strong>? 
+          Esta ação não pode ser desfeita.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <Button variant="outline" onClick={() => setDeleteModal({ isOpen: false, reservation: null })}>
+            Cancelar
+          </Button>
+          <Button variant="danger" onClick={handleDelete}>
+            Excluir
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
