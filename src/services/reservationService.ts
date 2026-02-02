@@ -9,6 +9,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
@@ -16,11 +17,31 @@ import { Reservation, ReservationStatus } from "../types";
 
 const COLLECTION_NAME = "reservations";
 
-export async function getReservations(): Promise<Reservation[]> {
-  const q = query(collection(db, COLLECTION_NAME), orderBy("checkIn", "desc"));
+// Cache local para reservas
+let reservationsCache: Reservation[] | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_DURATION = 30000; // 30 segundos
+
+export async function getReservations(
+  forceRefresh = false,
+): Promise<Reservation[]> {
+  // Usar cache se disponível e não expirado
+  if (
+    !forceRefresh &&
+    reservationsCache &&
+    Date.now() - cacheTimestamp < CACHE_DURATION
+  ) {
+    return reservationsCache;
+  }
+
+  const q = query(
+    collection(db, COLLECTION_NAME),
+    orderBy("checkIn", "desc"),
+    limit(200), // Limitar resultados
+  );
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
+  reservationsCache = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     checkIn: doc.data().checkIn?.toDate?.() || new Date(),
@@ -28,11 +49,26 @@ export async function getReservations(): Promise<Reservation[]> {
     createdAt: doc.data().createdAt?.toDate?.() || new Date(),
     updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
   })) as Reservation[];
+
+  cacheTimestamp = Date.now();
+  return reservationsCache;
+}
+
+// Invalida o cache quando necessário
+export function invalidateReservationsCache() {
+  reservationsCache = null;
+  cacheTimestamp = 0;
 }
 
 export async function getReservationById(
   id: string,
 ): Promise<Reservation | null> {
+  // Primeiro verifica no cache
+  if (reservationsCache) {
+    const cached = reservationsCache.find((r) => r.id === id);
+    if (cached) return cached;
+  }
+
   const docRef = doc(db, COLLECTION_NAME, id);
   const docSnap = await getDoc(docRef);
 
@@ -52,10 +88,16 @@ export async function getReservationById(
 export async function getReservationsByProperty(
   propertyId: string,
 ): Promise<Reservation[]> {
+  // Usar cache se disponível
+  if (reservationsCache) {
+    return reservationsCache.filter((r) => r.propertyId === propertyId);
+  }
+
   const q = query(
     collection(db, COLLECTION_NAME),
     where("propertyId", "==", propertyId),
     orderBy("checkIn", "desc"),
+    limit(100),
   );
   const snapshot = await getDocs(q);
 
@@ -72,6 +114,21 @@ export async function getReservationsByProperty(
 export async function getUpcomingReservations(
   daysAhead: number = 7,
 ): Promise<Reservation[]> {
+  // Usar cache se disponível
+  if (reservationsCache) {
+    const now = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + daysAhead);
+    return reservationsCache.filter((r) => {
+      const checkIn = new Date(r.checkIn);
+      return (
+        checkIn >= now &&
+        checkIn <= futureDate &&
+        (r.status === "pending" || r.status === "confirmed")
+      );
+    });
+  }
+
   const now = new Date();
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + daysAhead);
@@ -80,12 +137,12 @@ export async function getUpcomingReservations(
     collection(db, COLLECTION_NAME),
     where("checkIn", ">=", Timestamp.fromDate(now)),
     where("checkIn", "<=", Timestamp.fromDate(futureDate)),
-    where("status", "in", ["pending", "confirmed"]),
     orderBy("checkIn"),
+    limit(50),
   );
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
+  const results = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     checkIn: doc.data().checkIn?.toDate?.() || new Date(),
@@ -93,6 +150,11 @@ export async function getUpcomingReservations(
     createdAt: doc.data().createdAt?.toDate?.() || new Date(),
     updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
   })) as Reservation[];
+
+  // Filtrar por status no cliente (evita índice composto com "in")
+  return results.filter(
+    (r) => r.status === "pending" || r.status === "confirmed",
+  );
 }
 
 export async function createReservation(
@@ -105,6 +167,7 @@ export async function createReservation(
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
+  invalidateReservationsCache();
   return docRef.id;
 }
 
@@ -126,6 +189,7 @@ export async function updateReservation(
   }
 
   await updateDoc(docRef, updateData);
+  invalidateReservationsCache();
 }
 
 export async function updateReservationStatus(
@@ -137,11 +201,13 @@ export async function updateReservationStatus(
     status,
     updatedAt: Timestamp.now(),
   });
+  invalidateReservationsCache();
 }
 
 export async function deleteReservation(id: string): Promise<void> {
   const docRef = doc(db, COLLECTION_NAME, id);
   await deleteDoc(docRef);
+  invalidateReservationsCache();
 }
 
 export async function getReservationsByDateRange(

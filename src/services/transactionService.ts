@@ -9,6 +9,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
@@ -16,22 +17,59 @@ import { Transaction, TransactionType } from "../types";
 
 const COLLECTION_NAME = "transactions";
 
+// Cache local para transações
+let transactionsCache: Transaction[] | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_DURATION = 30000; // 30 segundos
+
+function isCacheValid(): boolean {
+  return (
+    transactionsCache !== null && Date.now() - cacheTimestamp < CACHE_DURATION
+  );
+}
+
+export function invalidateTransactionsCache(): void {
+  transactionsCache = null;
+  cacheTimestamp = 0;
+}
+
 export async function getTransactions(): Promise<Transaction[]> {
-  const q = query(collection(db, COLLECTION_NAME), orderBy("date", "desc"));
+  // Retorna cache se válido
+  if (isCacheValid()) {
+    return transactionsCache!;
+  }
+
+  const q = query(
+    collection(db, COLLECTION_NAME),
+    orderBy("date", "desc"),
+    limit(500), // Limita para evitar carregar muitos documentos
+  );
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
+  const transactions = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     date: doc.data().date?.toDate?.() || new Date(),
     createdAt: doc.data().createdAt?.toDate?.() || new Date(),
     updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
   })) as Transaction[];
+
+  // Atualiza o cache
+  transactionsCache = transactions;
+  cacheTimestamp = Date.now();
+
+  return transactions;
 }
 
 export async function getTransactionById(
   id: string,
 ): Promise<Transaction | null> {
+  // Tenta buscar do cache primeiro
+  if (isCacheValid()) {
+    const cached = transactionsCache!.find((t) => t.id === id);
+    if (cached) return cached;
+  }
+
   const docRef = doc(db, COLLECTION_NAME, id);
   const docSnap = await getDoc(docRef);
 
@@ -50,60 +88,47 @@ export async function getTransactionById(
 export async function getTransactionsByProperty(
   propertyId: string,
 ): Promise<Transaction[]> {
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    where("propertyId", "==", propertyId),
-    orderBy("date", "desc"),
-  );
-  const snapshot = await getDocs(q);
+  // Usa cache se disponível
+  if (isCacheValid()) {
+    return transactionsCache!.filter((t) => t.propertyId === propertyId);
+  }
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    date: doc.data().date?.toDate?.() || new Date(),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-  })) as Transaction[];
+  // Carrega todas as transações no cache e filtra
+  const allTransactions = await getTransactions();
+  return allTransactions.filter((t) => t.propertyId === propertyId);
 }
 
 export async function getTransactionsByType(
   type: TransactionType,
 ): Promise<Transaction[]> {
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    where("type", "==", type),
-    orderBy("date", "desc"),
-  );
-  const snapshot = await getDocs(q);
+  // Usa cache se disponível
+  if (isCacheValid()) {
+    return transactionsCache!.filter((t) => t.type === type);
+  }
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    date: doc.data().date?.toDate?.() || new Date(),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-  })) as Transaction[];
+  // Carrega todas as transações no cache e filtra
+  const allTransactions = await getTransactions();
+  return allTransactions.filter((t) => t.type === type);
 }
 
 export async function getTransactionsByDateRange(
   start: Date,
   end: Date,
 ): Promise<Transaction[]> {
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    where("date", ">=", Timestamp.fromDate(start)),
-    where("date", "<=", Timestamp.fromDate(end)),
-    orderBy("date", "desc"),
-  );
-  const snapshot = await getDocs(q);
+  // Usa cache se disponível
+  if (isCacheValid()) {
+    return transactionsCache!.filter((t) => {
+      const transactionDate = new Date(t.date);
+      return transactionDate >= start && transactionDate <= end;
+    });
+  }
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    date: doc.data().date?.toDate?.() || new Date(),
-    createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-  })) as Transaction[];
+  // Carrega todas as transações no cache e filtra
+  const allTransactions = await getTransactions();
+  return allTransactions.filter((t) => {
+    const transactionDate = new Date(t.date);
+    return transactionDate >= start && transactionDate <= end;
+  });
 }
 
 export async function createTransaction(
@@ -115,6 +140,8 @@ export async function createTransaction(
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
+
+  invalidateTransactionsCache();
   return docRef.id;
 }
 
@@ -133,11 +160,13 @@ export async function updateTransaction(
   }
 
   await updateDoc(docRef, updateData);
+  invalidateTransactionsCache();
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
   const docRef = doc(db, COLLECTION_NAME, id);
   await deleteDoc(docRef);
+  invalidateTransactionsCache();
 }
 
 // Financial summary helpers
