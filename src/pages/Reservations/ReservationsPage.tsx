@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Calendar, Filter, ChevronLeft, ChevronRight, Trash2, Lock, X, Eye, User, Mail, Phone, Users, DollarSign, FileText } from 'lucide-react';
+import { Plus, Search, Calendar, Filter, ChevronLeft, ChevronRight, Trash2, Lock, X, Eye, User, Mail, Phone, Users, DollarSign, FileText, Copy, Check } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval, addMonths, subMonths, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Card, CardHeader, Button, Input, Badge, Select, Modal } from '../../components/UI';
@@ -38,6 +38,7 @@ export default function ReservationsPage() {
     endDate: '',
     reason: '',
   });
+  const [copiedMessage, setCopiedMessage] = useState(false);
   
   // Filtros de data - mês atual como padrão
   const [startDateFilter, setStartDateFilter] = useState(() => {
@@ -181,6 +182,91 @@ export default function ReservationsPage() {
       setBlockModal({ isOpen: false, dateBlock: null });
     } catch (error) {
       console.error('Error deleting date block:', error);
+    }
+  }
+
+  // Função para gerar e copiar mensagem de boas-vindas
+  function generateWelcomeMessage(reservation: Reservation): string {
+    const firstName = reservation.guestName.split(' ')[0];
+    const checkInDate = format(new Date(reservation.checkIn), 'dd/MM/yyyy');
+    const checkOutDate = format(new Date(reservation.checkOut), 'dd/MM/yyyy');
+    
+    // Gera o link com base64
+    const base64Param = btoa(`${firstName};${checkOutDate}`);
+    const linkComoChegar = `https://meuhotel.com/reserval?p=${base64Param}`;
+    
+    // Mensagem para reserva direta
+    if (reservation.source === 'direct') {
+      return `Olá! ${firstName},
+Seja bem-vindo(a)!
+
+Gostaríamos de reforçar algumas informações importantes sobre a sua estadia:
+
+🕒 Check-in: 14:00 em ${checkInDate}
+🕒 Check-out: 12:00 em ${checkOutDate}
+
+💰Pagamento: Solicitamos o pagamento de, no mínimo, 50% do valor da reserva no momento da confirmação. O saldo restante deverá ser quitado antes do check-in.
+Cancelamento: Em caso de cancelamento, será cobrada uma taxa correspondente a 50% do valor total da diária.
+
+ATENÇÃO: o horário de saída deve ser respeitado, com tolerância máxima de 20 minutos. Após esse período, poderão ser aplicadas taxas adicionais.
+Como não há intervalo entre estadias, atrasos podem prejudicar o próximo hóspede, e eventuais custos gerados poderão ser repassados.
+
+📅 Extensão da estadia: caso tenha interesse em permanecer mais diárias, a extensão estará sujeita à disponibilidade, com condições e valores diferenciados.
+
+🏠 Regras básicas:
+* Manter o flat em condições básicas de organização
+* Evitar acúmulo de lixo
+* Louças usadas devem ser deixadas limpas ou organizadas
+* Não é permitido fumar no interior do imóvel
+* Não são permitidas festas ou eventos
+* Respeitar as regras de convivência e áreas compartilhadas
+
+✨ O flat oferece:
+Cozinha completa, banheiro privativo, televisão, piscina compartilhada, deck compartilhado e ambiente seguro.
+
+Esse link contém informações para tornar sua estadia mais incrível: ${linkComoChegar}
+
+Qualquer dúvida, ficamos à disposição. Desejamos uma excelente estadia! 🌿`;
+    }
+    
+    // Mensagem para outras origens (Airbnb, Booking, etc)
+    return `Olá! ${firstName},
+Seja bem-vindo(a)!
+
+Gostaríamos de reforçar algumas informações importantes sobre a sua estadia:
+
+🕒 Check-in: 14:00 em ${checkInDate}
+🕒 Check-out: 12:00 em ${checkOutDate}
+
+ATENÇÃO: o horário de saída deve ser respeitado, com tolerância máxima de 20 minutos. Após esse período, poderão ser aplicadas taxas adicionais.
+Como não há intervalo entre estadias, atrasos podem prejudicar o próximo hóspede, e eventuais custos gerados poderão ser repassados.
+
+📅 Extensão da estadia: caso tenha interesse em permanecer mais diárias, a extensão estará sujeita à disponibilidade, com condições e valores diferenciados.
+
+🏠 Regras básicas:
+* Manter o flat em condições básicas de organização
+* Evitar acúmulo de lixo
+* Louças usadas devem ser deixadas limpas ou organizadas
+* Não é permitido fumar no interior do imóvel
+* Não são permitidas festas ou eventos
+* Respeitar as regras de convivência e áreas compartilhadas
+
+Esse link contém informações para tornar sua estadia mais incrível: ${linkComoChegar}
+
+Qualquer dúvida, ficamos à disposição. Desejamos uma excelente estadia! 🌿`;
+  }
+
+  async function copyWelcomeMessage() {
+    if (!viewModal.reservation) return;
+    
+    const message = generateWelcomeMessage(viewModal.reservation);
+    
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedMessage(true);
+      setTimeout(() => setCopiedMessage(false), 2000);
+    } catch (err) {
+      console.error('Error copying to clipboard:', err);
     }
   }
 
@@ -640,6 +726,23 @@ export default function ReservationsPage() {
           </div>
         )}
         <div className="flex gap-3 justify-end mt-6">
+          <Button 
+            variant="outline" 
+            onClick={copyWelcomeMessage}
+            className="flex items-center gap-2"
+          >
+            {copiedMessage ? (
+              <>
+                <Check className="w-4 h-4 text-green-500" />
+                Copiado!
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4" />
+                Copiar Mensagem
+              </>
+            )}
+          </Button>
           <Button variant="outline" onClick={() => setViewModal({ isOpen: false, reservation: null })}>
             Fechar
           </Button>
