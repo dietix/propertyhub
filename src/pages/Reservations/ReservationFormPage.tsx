@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
+import { format } from 'date-fns';
 import { Card, CardHeader, Button, Input, Select } from '../../components/UI';
-import { createReservation } from '../../services/reservationService';
+import { createReservation, getReservationById, updateReservation } from '../../services/reservationService';
 import { getProperties } from '../../services/propertyService';
 import { Property, ReservationSource, ReservationStatus } from '../../types';
 
@@ -45,14 +46,19 @@ const statusOptions: { value: ReservationStatus; label: string }[] = [
 
 export default function ReservationFormPage() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = Boolean(id);
+  
   const [properties, setProperties] = useState<Property[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   const {
     register,
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<ReservationFormData>({
     resolver: zodResolver(reservationSchema),
@@ -81,29 +87,93 @@ export default function ReservationFormPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedPropertyId) {
+    async function fetchReservation() {
+      if (!id) return;
+      
+      try {
+        setIsLoadingData(true);
+        const reservation = await getReservationById(id);
+        
+        if (reservation) {
+          reset({
+            propertyId: reservation.propertyId,
+            guestName: reservation.guestName,
+            guestEmail: reservation.guestEmail,
+            guestPhone: reservation.guestPhone,
+            checkIn: format(new Date(reservation.checkIn), 'yyyy-MM-dd'),
+            checkOut: format(new Date(reservation.checkOut), 'yyyy-MM-dd'),
+            numberOfGuests: reservation.numberOfGuests,
+            totalAmount: reservation.totalAmount,
+            cleaningFee: reservation.cleaningFee,
+            platformFee: reservation.platformFee,
+            source: reservation.source,
+            status: reservation.status,
+            notes: reservation.notes || '',
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching reservation:', error);
+      } finally {
+        setIsLoadingData(false);
+      }
+    }
+    
+    fetchReservation();
+  }, [id, reset]);
+
+  useEffect(() => {
+    // Só atualiza a taxa de limpeza automaticamente no modo de criação
+    if (selectedPropertyId && !isEditMode) {
       const property = properties.find((p) => p.id === selectedPropertyId);
       if (property) {
         setValue('cleaningFee', property.cleaningFee || 0);
       }
     }
-  }, [selectedPropertyId, properties, setValue]);
+  }, [selectedPropertyId, properties, setValue, isEditMode]);
 
   async function onSubmit(data: ReservationFormData) {
     try {
       setIsLoading(true);
-      await createReservation({
-        ...data,
-        checkIn: new Date(data.checkIn),
-        checkOut: new Date(data.checkOut),
-        notes: data.notes || '',
-      });
+      
+      if (isEditMode && id) {
+        await updateReservation(id, {
+          propertyId: data.propertyId,
+          guestName: data.guestName,
+          guestEmail: data.guestEmail,
+          guestPhone: data.guestPhone,
+          checkIn: new Date(data.checkIn),
+          checkOut: new Date(data.checkOut),
+          numberOfGuests: data.numberOfGuests,
+          totalAmount: data.totalAmount,
+          cleaningFee: data.cleaningFee,
+          platformFee: data.platformFee,
+          source: data.source,
+          status: data.status,
+          notes: data.notes || '',
+        });
+      } else {
+        await createReservation({
+          ...data,
+          checkIn: new Date(data.checkIn),
+          checkOut: new Date(data.checkOut),
+          notes: data.notes || '',
+        });
+      }
+      
       navigate('/reservations');
     } catch (error) {
-      console.error('Error creating reservation:', error);
+      console.error('Error saving reservation:', error);
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (isLoadingData) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#FF5A5F]"></div>
+      </div>
+    );
   }
 
   return (
@@ -117,8 +187,12 @@ export default function ReservationFormPage() {
           <ArrowLeft className="w-5 h-5 text-gray-600" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Nova Reserva</h1>
-          <p className="text-gray-500 mt-1">Adicione uma nova reserva manualmente</p>
+          <h1 className="text-2xl font-bold text-gray-800">
+            {isEditMode ? 'Editar Reserva' : 'Nova Reserva'}
+          </h1>
+          <p className="text-gray-500 mt-1">
+            {isEditMode ? 'Atualize os dados da reserva' : 'Adicione uma nova reserva manualmente'}
+          </p>
         </div>
       </div>
 
@@ -260,7 +334,7 @@ export default function ReservationFormPage() {
             Cancelar
           </Button>
           <Button type="submit" isLoading={isLoading}>
-            Salvar Reserva
+            {isEditMode ? 'Atualizar Reserva' : 'Salvar Reserva'}
           </Button>
         </div>
       </form>

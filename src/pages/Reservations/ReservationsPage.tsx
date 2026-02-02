@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Calendar, Filter, ChevronLeft, ChevronRight, Trash2, Lock, X } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval, addMonths, subMonths } from 'date-fns';
+import { Plus, Search, Calendar, Filter, ChevronLeft, ChevronRight, Trash2, Lock, X, Eye, User, Mail, Phone, Users, DollarSign, FileText } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isWithinInterval, addMonths, subMonths, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Card, CardHeader, Button, Input, Badge, Select, Modal } from '../../components/UI';
 import { Reservation, Property, ReservationStatus, ReservationSource, DateBlock } from '../../types';
@@ -20,6 +20,10 @@ export default function ReservationsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; reservation: Reservation | null }>({
+    isOpen: false,
+    reservation: null,
+  });
+  const [viewModal, setViewModal] = useState<{ isOpen: boolean; reservation: Reservation | null }>({
     isOpen: false,
     reservation: null,
   });
@@ -376,6 +380,13 @@ export default function ReservationsPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => setViewModal({ isOpen: true, reservation })}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Ver detalhes"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                             <Select
                               options={[
                                 { value: 'pending', label: 'Pendente' },
@@ -495,6 +506,148 @@ export default function ReservationsPage() {
           </div>
         </Card>
       )}
+
+      {/* View Reservation Modal */}
+      <Modal
+        isOpen={viewModal.isOpen}
+        onClose={() => setViewModal({ isOpen: false, reservation: null })}
+        title="Detalhes da Reserva"
+        size="lg"
+      >
+        {viewModal.reservation && (
+          <div className="space-y-6">
+            {/* Header com status e origem */}
+            <div className="flex flex-wrap items-center gap-3">
+              {getStatusBadge(viewModal.reservation.status)}
+              {getSourceBadge(viewModal.reservation.source)}
+            </div>
+
+            {/* Informações do Hóspede */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Informações do Hóspede</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#FF5A5F]/10 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-[#FF5A5F]" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Nome</p>
+                    <p className="font-medium text-gray-800">{viewModal.reservation.guestName}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Email</p>
+                    <p className="font-medium text-gray-800">{viewModal.reservation.guestEmail}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
+                    <Phone className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Telefone</p>
+                    <p className="font-medium text-gray-800">{viewModal.reservation.guestPhone || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-50 rounded-full flex items-center justify-center">
+                    <Users className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Hóspedes</p>
+                    <p className="font-medium text-gray-800">{viewModal.reservation.numberOfGuests} pessoa(s)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Informações da Reserva */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Detalhes da Estadia</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500">Propriedade</p>
+                  <p className="font-medium text-gray-800">{getPropertyName(viewModal.reservation.propertyId)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Check-in</p>
+                  <p className="font-medium text-gray-800">
+                    {format(new Date(viewModal.reservation.checkIn), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Check-out</p>
+                  <p className="font-medium text-gray-800">
+                    {format(new Date(viewModal.reservation.checkOut), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  </p>
+                </div>
+                <div className="sm:col-span-3">
+                  <p className="text-xs text-gray-500">Duração</p>
+                  <p className="font-medium text-gray-800">
+                    {differenceInDays(new Date(viewModal.reservation.checkOut), new Date(viewModal.reservation.checkIn))} noite(s)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Informações Financeiras */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Valores</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Valor da estadia</span>
+                  <span className="font-medium text-gray-800">
+                    R$ {(viewModal.reservation.totalAmount - viewModal.reservation.cleaningFee).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Taxa de limpeza</span>
+                  <span className="font-medium text-gray-800">
+                    R$ {viewModal.reservation.cleaningFee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Taxa da plataforma</span>
+                  <span className="font-medium text-red-600">
+                    - R$ {viewModal.reservation.platformFee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="border-t pt-2 mt-2 flex justify-between items-center">
+                  <span className="font-semibold text-gray-800">Total</span>
+                  <span className="font-bold text-lg text-green-600">
+                    R$ {viewModal.reservation.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Observações */}
+            {viewModal.reservation.notes && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Observações</h3>
+                <p className="text-gray-700 whitespace-pre-wrap">{viewModal.reservation.notes}</p>
+              </div>
+            )}
+
+            {/* Data de criação */}
+            <div className="text-xs text-gray-400 text-right">
+              Reserva criada em {format(new Date(viewModal.reservation.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            </div>
+          </div>
+        )}
+        <div className="flex gap-3 justify-end mt-6">
+          <Button variant="outline" onClick={() => setViewModal({ isOpen: false, reservation: null })}>
+            Fechar
+          </Button>
+          <Link to={`/reservations/${viewModal.reservation?.id}/edit`}>
+            <Button>Editar Reserva</Button>
+          </Link>
+        </div>
+      </Modal>
 
       {/* Delete Modal */}
       <Modal
