@@ -83,6 +83,18 @@ CREATE TABLE IF NOT EXISTS public.date_blocks (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Tabela de senhas de acesso
+CREATE TABLE IF NOT EXISTS public.access_codes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
+  code VARCHAR(10) NOT NULL,
+  description TEXT DEFAULT '',
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Índices para melhor performance
 CREATE INDEX IF NOT EXISTS idx_properties_owner ON public.properties(owner_id);
 CREATE INDEX IF NOT EXISTS idx_properties_active ON public.properties(is_active);
@@ -94,6 +106,8 @@ CREATE INDEX IF NOT EXISTS idx_transactions_date ON public.transactions(date);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON public.transactions(type);
 CREATE INDEX IF NOT EXISTS idx_date_blocks_property ON public.date_blocks(property_id);
 CREATE INDEX IF NOT EXISTS idx_date_blocks_dates ON public.date_blocks(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_access_codes_property ON public.access_codes(property_id);
+CREATE INDEX IF NOT EXISTS idx_access_codes_dates ON public.access_codes(start_date, end_date);
 
 -- Row Level Security (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -101,6 +115,7 @@ ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.date_blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.access_codes ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de segurança para users
 CREATE POLICY "Users can view their own profile" ON public.users
@@ -164,6 +179,19 @@ CREATE POLICY "Anyone authenticated can update date_blocks" ON public.date_block
 CREATE POLICY "Anyone authenticated can delete date_blocks" ON public.date_blocks
   FOR DELETE TO authenticated USING (true);
 
+-- Políticas para access_codes
+CREATE POLICY "Anyone authenticated can view access_codes" ON public.access_codes
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Anyone authenticated can insert access_codes" ON public.access_codes
+  FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "Anyone authenticated can update access_codes" ON public.access_codes
+  FOR UPDATE TO authenticated USING (true);
+
+CREATE POLICY "Anyone authenticated can delete access_codes" ON public.access_codes
+  FOR DELETE TO authenticated USING (true);
+
 -- Função para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -192,6 +220,10 @@ CREATE TRIGGER update_transactions_updated_at
 
 CREATE TRIGGER update_date_blocks_updated_at
   BEFORE UPDATE ON public.date_blocks
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_access_codes_updated_at
+  BEFORE UPDATE ON public.access_codes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Função para criar usuário automaticamente ao fazer signup

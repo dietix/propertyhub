@@ -8,6 +8,7 @@ import { ReservationsPage, ReservationFormPage } from './pages/Reservations';
 import { FinancesPage, TransactionFormPage } from './pages/Finances';
 import { ReportsPage } from './pages/Reports';
 import { UsersPage } from './pages/Users';
+import { AccessCodesPage } from './pages/AccessCodes';
 
 function App() {
   return (
@@ -42,6 +43,9 @@ function App() {
             {/* Finances */}
             <Route path="finances" element={<FinancesPage />} />
             <Route path="finances/new" element={<TransactionFormPage />} />
+
+            {/* Access Codes */}
+            <Route path="access-codes" element={<AccessCodesPage />} />
 
             {/* Reports */}
             <Route path="reports" element={<ReportsPage />} />

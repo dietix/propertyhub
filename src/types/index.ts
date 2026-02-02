@@ -149,6 +149,18 @@ export interface DateBlock {
   updatedAt: Date;
 }
 
+// Access Code types
+export interface AccessCode {
+  id: string;
+  propertyId: string;
+  code: string;
+  description: string;
+  startDate: Date;
+  endDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Calendar types
 export interface CalendarEvent {
   id: string;

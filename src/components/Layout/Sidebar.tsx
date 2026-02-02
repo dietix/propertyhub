@@ -9,7 +9,8 @@ import {
   Users,
   LogOut,
   Menu,
-  X
+  X,
+  Key
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Propriedades', href: '/properties', icon: Home },
   { name: 'Reservas', href: '/reservations', icon: Calendar },
   { name: 'Financeiro', href: '/finances', icon: DollarSign },
+  { name: 'Senhas', href: '/access-codes', icon: Key },
   { name: 'Relatórios', href: '/reports', icon: BarChart3 },
 ];
 
