@@ -150,7 +150,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     // Busca sessão inicial
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+  console.log('aqui', session)
+
       setSession(session);
       setCurrentUser(session?.user ?? null);
 
