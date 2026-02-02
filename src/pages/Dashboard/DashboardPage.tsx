@@ -122,15 +122,40 @@ export default function DashboardPage() {
     })
     .slice(0, 5);
 
-  // Mock chart data (in production, this would be calculated from real data)
-  const chartData = [
-    { month: 'Jan', receitas: 4000, despesas: 2400 },
-    { month: 'Fev', receitas: 3000, despesas: 1398 },
-    { month: 'Mar', receitas: 2000, despesas: 9800 },
-    { month: 'Abr', receitas: 2780, despesas: 3908 },
-    { month: 'Mai', receitas: 1890, despesas: 4800 },
-    { month: 'Jun', receitas: 2390, despesas: 3800 },
-  ];
+  // Calcular dados reais do gráfico baseado nas transações dos últimos 6 meses
+  const chartData = (() => {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const data: { month: string; receitas: number; despesas: number }[] = [];
+    
+    // Pegar os últimos 6 meses
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const month = date.getMonth();
+      const year = date.getFullYear();
+      
+      const monthTransactions = transactions.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate.getMonth() === month && tDate.getFullYear() === year;
+      });
+      
+      const receitas = monthTransactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const despesas = monthTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      data.push({
+        month: months[month],
+        receitas,
+        despesas
+      });
+    }
+    
+    return data;
+  })();
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'info' }> = {
