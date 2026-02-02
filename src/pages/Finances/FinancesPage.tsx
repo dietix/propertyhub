@@ -290,42 +290,46 @@ export default function FinancesPage() {
               className="border-0 focus:ring-0"
             />
           </div>
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-40"
-              />
-              <span className="text-gray-400">até</span>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full sm:w-36"
+                />
+              </div>
+              <span className="text-gray-400 hidden sm:inline">até</span>
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-40"
+                className="w-full sm:w-36"
               />
             </div>
-            <Select
-              options={[
-                { value: '', label: 'Todos tipos' },
-                { value: 'income', label: 'Receitas' },
-                { value: 'expense', label: 'Despesas' },
-              ]}
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="w-40"
-            />
-            <Select
-              options={[
-                { value: '', label: 'Todas propriedades' },
-                ...properties.map((p) => ({ value: p.id, label: p.name })),
-              ]}
-              value={selectedProperty}
-              onChange={(e) => setSelectedProperty(e.target.value)}
-              className="w-48"
-            />
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <Select
+                options={[
+                  { value: '', label: 'Todos tipos' },
+                  { value: 'income', label: 'Receitas' },
+                  { value: 'expense', label: 'Despesas' },
+                ]}
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="w-full sm:w-40"
+              />
+              <Select
+                options={[
+                  { value: '', label: 'Todas propriedades' },
+                  ...properties.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+                value={selectedProperty}
+                onChange={(e) => setSelectedProperty(e.target.value)}
+                className="w-full sm:w-48"
+              />
+            </div>
           </div>
         </div>
       </Card>

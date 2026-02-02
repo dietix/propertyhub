@@ -225,7 +225,7 @@ export default function ReservationsPage() {
           <h1 className="text-2xl font-bold text-gray-800">Reservas</h1>
           <p className="text-gray-500 mt-1">Gerencie todas as reservas</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('list')}
@@ -248,11 +248,16 @@ export default function ReservationsPage() {
             variant="outline" 
             leftIcon={<Lock className="w-4 h-4" />}
             onClick={() => setNewBlockModal(true)}
+            className="text-sm"
           >
-            Bloquear Datas
+            <span className="hidden sm:inline">Bloquear Datas</span>
+            <span className="sm:hidden">Bloquear</span>
           </Button>
           <Link to="/reservations/new">
-            <Button leftIcon={<Plus className="w-4 h-4" />}>Nova Reserva</Button>
+            <Button leftIcon={<Plus className="w-4 h-4" />} className="text-sm">
+              <span className="hidden sm:inline">Nova Reserva</span>
+              <span className="sm:hidden">Nova</span>
+            </Button>
           </Link>
         </div>
       </div>
@@ -269,45 +274,49 @@ export default function ReservationsPage() {
               className="border-0 focus:ring-0"
             />
           </div>
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <Input
-                type="date"
-                value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-                className="w-40"
-              />
-              <span className="text-gray-400">até</span>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                <Input
+                  type="date"
+                  value={startDateFilter}
+                  onChange={(e) => setStartDateFilter(e.target.value)}
+                  className="w-full sm:w-36"
+                />
+              </div>
+              <span className="text-gray-400 hidden sm:inline">até</span>
               <Input
                 type="date"
                 value={endDateFilter}
                 onChange={(e) => setEndDateFilter(e.target.value)}
-                className="w-40"
+                className="w-full sm:w-36"
               />
             </div>
-            <Select
-              options={[
-                { value: '', label: 'Todas propriedades' },
-                ...properties.map((p) => ({ value: p.id, label: p.name })),
-              ]}
-              value={selectedProperty}
-              onChange={(e) => setSelectedProperty(e.target.value)}
-              className="w-48"
-            />
-            <Select
-              options={[
-                { value: '', label: 'Todos status' },
-                { value: 'pending', label: 'Pendente' },
-                { value: 'confirmed', label: 'Confirmada' },
-                { value: 'checked-in', label: 'Check-in' },
-                { value: 'checked-out', label: 'Check-out' },
-                { value: 'cancelled', label: 'Cancelada' },
-              ]}
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-40"
-            />
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <Select
+                options={[
+                  { value: '', label: 'Todas propriedades' },
+                  ...properties.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+                value={selectedProperty}
+                onChange={(e) => setSelectedProperty(e.target.value)}
+                className="w-full sm:w-48"
+              />
+              <Select
+                options={[
+                  { value: '', label: 'Todos status' },
+                  { value: 'pending', label: 'Pendente' },
+                  { value: 'confirmed', label: 'Confirmada' },
+                  { value: 'checked-in', label: 'Check-in' },
+                  { value: 'checked-out', label: 'Check-out' },
+                  { value: 'cancelled', label: 'Cancelada' },
+                ]}
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="w-full sm:w-40"
+              />
+            </div>
           </div>
         </div>
       </Card>
@@ -421,9 +430,9 @@ export default function ReservationsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-              <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
+              <div key={day} className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-gray-500">
                 {day}
               </div>
             ))}
@@ -437,14 +446,14 @@ export default function ReservationsPage() {
               return (
                 <div
                   key={idx}
-                  className={`min-h-24 p-1 border border-gray-100 rounded-lg ${
+                  className={`min-h-16 sm:min-h-24 p-0.5 sm:p-1 border border-gray-100 rounded-lg ${
                     !isCurrentMonth ? 'bg-gray-50' : ''
                   } ${isToday ? 'ring-2 ring-[#FF5A5F]' : ''} ${isBlocked ? 'bg-gray-200' : ''}`}
                 >
-                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-[#FF5A5F]' : 'text-gray-600'}`}>
+                  <div className={`text-xs sm:text-sm font-medium mb-0.5 sm:mb-1 ${isToday ? 'text-[#FF5A5F]' : 'text-gray-600'}`}>
                     {format(day, 'd')}
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-0.5 sm:space-y-1 hidden sm:block">
                     {dayBlocks.slice(0, 1).map((block) => (
                       <div
                         key={block.id}
@@ -469,6 +478,17 @@ export default function ReservationsPage() {
                       <div className="text-xs text-gray-500">+{dayReservations.length + dayBlocks.length - 2} mais</div>
                     )}
                   </div>
+                  {/* Mobile indicator */}
+                  {(dayReservations.length > 0 || dayBlocks.length > 0) && (
+                    <div className="sm:hidden flex gap-0.5 flex-wrap">
+                      {dayBlocks.length > 0 && (
+                        <div className="w-1.5 h-1.5 bg-gray-600 rounded-full" title="Bloqueado" />
+                      )}
+                      {dayReservations.slice(0, 3).map((r) => (
+                        <div key={r.id} className="w-1.5 h-1.5 bg-[#FF5A5F] rounded-full" />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
