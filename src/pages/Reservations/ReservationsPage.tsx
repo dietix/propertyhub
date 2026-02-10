@@ -454,10 +454,10 @@ Qualquer dúvida, ficamos à disposição. Desejamos uma excelente estadia! 🌿
                           {getPropertyName(reservation.propertyId)}
                         </td>
                         <td className="py-3 px-4 text-gray-600">
-                          {format(new Date(reservation.checkIn), 'dd/MM/yyyy')}
+                          {format(new Date(reservation.checkIn), 'dd/MM/yyyy', { locale: ptBR })}
                         </td>
                         <td className="py-3 px-4 text-gray-600">
-                          {format(new Date(reservation.checkOut), 'dd/MM/yyyy')}
+                          {format(new Date(reservation.checkOut), 'dd/MM/yyyy', { locale: ptBR })}
                         </td>
                         <td className="py-3 px-4">{getSourceBadge(reservation.source)}</td>
                         <td className="py-3 px-4">{getStatusBadge(reservation.status)}</td>
