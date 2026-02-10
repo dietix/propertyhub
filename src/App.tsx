@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { MainLayout, ProtectedRoute } from './components/Layout';
-import { LoginPage, RegisterPage } from './pages/Auth';
+import { LoginPage } from './pages/Auth';
 import { DashboardPage } from './pages/Dashboard';
 import { PropertiesPage, PropertyFormPage } from './pages/Properties';
 import { ReservationsPage, ReservationFormPage } from './pages/Reservations';
@@ -17,7 +17,6 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
 
           {/* Protected routes */}
           <Route

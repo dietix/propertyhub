@@ -81,12 +81,7 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Não tem uma conta?{' '}
-          <Link to="/register" className="text-[#FF5A5F] font-medium hover:underline">
-            Cadastre-se
-          </Link>
-        </p>
+
       </Card>
     </div>
   );
