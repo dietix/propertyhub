@@ -13,7 +13,7 @@ import { AccessCodesPage } from './pages/AccessCodes';
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router basename='propertyhub'>
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
