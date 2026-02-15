@@ -1,5 +1,6 @@
 import { supabase } from "../config/supabase";
 import { Transaction, TransactionType } from "../types";
+import { formatDateOnly, parseDateOnly } from "../utils/date";
 
 function mapDbToTransaction(data: Record<string, unknown>): Transaction {
   return {
@@ -10,7 +11,7 @@ function mapDbToTransaction(data: Record<string, unknown>): Transaction {
     category: data.category as Transaction["category"],
     amount: Number(data.amount),
     description: (data.description as string) || "",
-    date: new Date(data.date as string),
+    date: parseDateOnly(data.date as string),
     createdAt: new Date(data.created_at as string),
     updatedAt: new Date(data.updated_at as string),
   };
@@ -86,8 +87,8 @@ export async function getTransactionsByDateRange(
   start: Date,
   end: Date,
 ): Promise<Transaction[]> {
-  const startStr = start.toISOString().split("T")[0];
-  const endStr = end.toISOString().split("T")[0];
+  const startStr = formatDateOnly(start);
+  const endStr = formatDateOnly(end);
 
   const { data, error } = await supabase
     .from("transactions")
@@ -116,7 +117,7 @@ export async function createTransaction(
       category: transaction.category,
       amount: transaction.amount,
       description: transaction.description,
-      date: new Date(transaction.date).toISOString().split("T")[0],
+      date: formatDateOnly(transaction.date),
     })
     .select("id")
     .single();
@@ -146,7 +147,7 @@ export async function updateTransaction(
   if (transaction.description !== undefined)
     updateData.description = transaction.description;
   if (transaction.date !== undefined)
-    updateData.date = new Date(transaction.date).toISOString().split("T")[0];
+    updateData.date = formatDateOnly(transaction.date);
 
   const { error } = await supabase
     .from("transactions")

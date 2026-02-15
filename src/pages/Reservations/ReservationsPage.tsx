@@ -104,6 +104,8 @@ export default function ReservationsPage() {
       booking: { label: 'Booking', color: 'bg-blue-600' },
       vrbo: { label: 'VRBO', color: 'bg-purple-600' },
       direct: { label: 'Direto', color: 'bg-green-600' },
+      whatsapp: { label: 'WhatsApp', color: 'bg-emerald-600' },
+      instagram: { label: 'Instagram', color: 'bg-pink-500' },
       other: { label: 'Outro', color: 'bg-gray-600' },
     };
     const config = sourceConfig[source];

@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS public.reservations (
   cleaning_fee DECIMAL(10,2) DEFAULT 0,
   platform_fee DECIMAL(10,2) DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'checked-in', 'checked-out', 'cancelled')),
-  source TEXT NOT NULL CHECK (source IN ('airbnb', 'booking', 'vrbo', 'direct', 'other')),
+  source TEXT NOT NULL CHECK (source IN ('airbnb', 'booking', 'vrbo', 'direct', 'whatsapp', 'instagram', 'other')),
   notes TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

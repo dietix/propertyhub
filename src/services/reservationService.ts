@@ -1,5 +1,6 @@
 import { supabase } from "../config/supabase";
 import { Reservation, ReservationStatus } from "../types";
+import { formatDateOnly, parseDateOnly } from "../utils/date";
 
 function mapDbToReservation(data: Record<string, unknown>): Reservation {
   return {
@@ -8,8 +9,8 @@ function mapDbToReservation(data: Record<string, unknown>): Reservation {
     guestName: data.guest_name as string,
     guestEmail: data.guest_email as string,
     guestPhone: (data.guest_phone as string) || "",
-    checkIn: new Date(data.check_in as string),
-    checkOut: new Date(data.check_out as string),
+    checkIn: parseDateOnly(data.check_in as string),
+    checkOut: parseDateOnly(data.check_out as string),
     numberOfGuests: data.number_of_guests as number,
     totalAmount: Number(data.total_amount),
     cleaningFee: Number(data.cleaning_fee) || 0,
@@ -74,10 +75,10 @@ export async function getReservationsByProperty(
 export async function getUpcomingReservations(
   daysAhead: number = 7,
 ): Promise<Reservation[]> {
-  const now = new Date().toISOString().split("T")[0];
+  const now = formatDateOnly(new Date());
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + daysAhead);
-  const futureDateStr = futureDate.toISOString().split("T")[0];
+  const futureDateStr = formatDateOnly(futureDate);
 
   const { data, error } = await supabase
     .from("reservations")
@@ -105,8 +106,8 @@ export async function createReservation(
       guest_name: reservation.guestName,
       guest_email: reservation.guestEmail,
       guest_phone: reservation.guestPhone,
-      check_in: new Date(reservation.checkIn).toISOString().split("T")[0],
-      check_out: new Date(reservation.checkOut).toISOString().split("T")[0],
+      check_in: formatDateOnly(reservation.checkIn),
+      check_out: formatDateOnly(reservation.checkOut),
       number_of_guests: reservation.numberOfGuests,
       total_amount: reservation.totalAmount,
       cleaning_fee: reservation.cleaningFee,
@@ -141,13 +142,9 @@ export async function updateReservation(
   if (reservation.guestPhone !== undefined)
     updateData.guest_phone = reservation.guestPhone;
   if (reservation.checkIn !== undefined)
-    updateData.check_in = new Date(reservation.checkIn)
-      .toISOString()
-      .split("T")[0];
+    updateData.check_in = formatDateOnly(reservation.checkIn);
   if (reservation.checkOut !== undefined)
-    updateData.check_out = new Date(reservation.checkOut)
-      .toISOString()
-      .split("T")[0];
+    updateData.check_out = formatDateOnly(reservation.checkOut);
   if (reservation.numberOfGuests !== undefined)
     updateData.number_of_guests = reservation.numberOfGuests;
   if (reservation.totalAmount !== undefined)
@@ -199,8 +196,8 @@ export async function getReservationsByDateRange(
   start: Date,
   end: Date,
 ): Promise<Reservation[]> {
-  const startStr = start.toISOString().split("T")[0];
-  const endStr = end.toISOString().split("T")[0];
+  const startStr = formatDateOnly(start);
+  const endStr = formatDateOnly(end);
 
   const { data, error } = await supabase
     .from("reservations")

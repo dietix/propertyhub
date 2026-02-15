@@ -1,5 +1,6 @@
 import { supabase } from "../config/supabase";
 import { AccessCode } from "../types";
+import { formatDateOnly, parseDateOnly } from "../utils/date";
 
 function mapDbToAccessCode(data: Record<string, unknown>): AccessCode {
   return {
@@ -7,8 +8,8 @@ function mapDbToAccessCode(data: Record<string, unknown>): AccessCode {
     propertyId: data.property_id as string,
     code: data.code as string,
     description: (data.description as string) || "",
-    startDate: new Date(data.start_date as string),
-    endDate: new Date(data.end_date as string),
+    startDate: parseDateOnly(data.start_date as string),
+    endDate: parseDateOnly(data.end_date as string),
     createdAt: new Date(data.created_at as string),
     updatedAt: new Date(data.updated_at as string),
   };
@@ -54,8 +55,8 @@ export async function createAccessCode(
       property_id: accessCode.propertyId,
       code: accessCode.code,
       description: accessCode.description,
-      start_date: new Date(accessCode.startDate).toISOString().split("T")[0],
-      end_date: new Date(accessCode.endDate).toISOString().split("T")[0],
+      start_date: formatDateOnly(accessCode.startDate),
+      end_date: formatDateOnly(accessCode.endDate),
     })
     .select("id")
     .single();
@@ -79,13 +80,9 @@ export async function updateAccessCode(
   if (accessCode.description !== undefined)
     updateData.description = accessCode.description;
   if (accessCode.startDate)
-    updateData.start_date = new Date(accessCode.startDate)
-      .toISOString()
-      .split("T")[0];
+    updateData.start_date = formatDateOnly(accessCode.startDate);
   if (accessCode.endDate)
-    updateData.end_date = new Date(accessCode.endDate)
-      .toISOString()
-      .split("T")[0];
+    updateData.end_date = formatDateOnly(accessCode.endDate);
 
   const { error } = await supabase
     .from("access_codes")

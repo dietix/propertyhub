@@ -9,6 +9,7 @@ import { Card, CardHeader, Button, Input, Select } from '../../components/UI';
 import { createReservation, getReservationById, updateReservation } from '../../services/reservationService';
 import { getProperties } from '../../services/propertyService';
 import { Property, ReservationSource, ReservationStatus } from '../../types';
+import { parseDateOnly } from '../../utils/date';
 
 const reservationSchema = z.object({
   propertyId: z.string().min(1, 'Selecione uma propriedade'),
@@ -21,7 +22,7 @@ const reservationSchema = z.object({
   totalAmount: z.number().min(0, 'Valor total inválido'),
   cleaningFee: z.number().min(0, 'Taxa de limpeza inválida'),
   platformFee: z.number().min(0, 'Taxa da plataforma inválida'),
-  source: z.enum(['airbnb', 'booking', 'vrbo', 'direct', 'other'] as const),
+  source: z.enum(['airbnb', 'booking', 'vrbo', 'direct', 'whatsapp', 'instagram', 'other'] as const),
   status: z.enum(['pending', 'confirmed', 'checked-in', 'checked-out', 'cancelled'] as const),
   notes: z.string().optional(),
 });
@@ -33,6 +34,8 @@ const sourceOptions: { value: ReservationSource; label: string }[] = [
   { value: 'booking', label: 'Booking.com' },
   { value: 'vrbo', label: 'VRBO' },
   { value: 'direct', label: 'Reserva Direta' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'instagram', label: 'Instagram' },
   { value: 'other', label: 'Outro' },
 ];
 
@@ -141,8 +144,8 @@ export default function ReservationFormPage() {
           guestName: data.guestName,
           guestEmail: data.guestEmail,
           guestPhone: data.guestPhone,
-          checkIn: new Date(data.checkIn),
-          checkOut: new Date(data.checkOut),
+          checkIn: parseDateOnly(data.checkIn),
+          checkOut: parseDateOnly(data.checkOut),
           numberOfGuests: data.numberOfGuests,
           totalAmount: data.totalAmount,
           cleaningFee: data.cleaningFee,
@@ -154,8 +157,8 @@ export default function ReservationFormPage() {
       } else {
         await createReservation({
           ...data,
-          checkIn: new Date(data.checkIn),
-          checkOut: new Date(data.checkOut),
+          checkIn: parseDateOnly(data.checkIn),
+          checkOut: parseDateOnly(data.checkOut),
           notes: data.notes || '',
         });
       }

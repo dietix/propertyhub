@@ -6,6 +6,7 @@ import { Card, Button, Input, Select, Badge, Modal } from '../../components/UI';
 import { AccessCode, Property } from '../../types';
 import { getAccessCodes, createAccessCode, deleteAccessCode } from '../../services/accessCodeService';
 import { getProperties } from '../../services/propertyService';
+import { parseDateOnly } from '../../utils/date';
 
 export default function AccessCodesPage() {
   const [accessCodes, setAccessCodes] = useState<AccessCode[]>([]);
@@ -99,8 +100,8 @@ export default function AccessCodesPage() {
         propertyId: newCode.propertyId,
         code: newCode.code,
         description: newCode.description,
-        startDate: new Date(newCode.startDate),
-        endDate: new Date(newCode.endDate),
+        startDate: parseDateOnly(newCode.startDate),
+        endDate: parseDateOnly(newCode.endDate),
       });
       
       setNewCodeModal(false);

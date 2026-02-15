@@ -1,12 +1,13 @@
 import { supabase } from "../config/supabase";
 import { DateBlock } from "../types";
+import { formatDateOnly, parseDateOnly } from "../utils/date";
 
 function mapDbToDateBlock(data: Record<string, unknown>): DateBlock {
   return {
     id: data.id as string,
     propertyId: data.property_id as string,
-    startDate: new Date(data.start_date as string),
-    endDate: new Date(data.end_date as string),
+    startDate: parseDateOnly(data.start_date as string),
+    endDate: parseDateOnly(data.end_date as string),
     reason: (data.reason as string) || "",
     createdAt: new Date(data.created_at as string),
     updatedAt: new Date(data.updated_at as string),
@@ -51,8 +52,8 @@ export async function createDateBlock(
     .from("date_blocks")
     .insert({
       property_id: dateBlock.propertyId,
-      start_date: new Date(dateBlock.startDate).toISOString().split("T")[0],
-      end_date: new Date(dateBlock.endDate).toISOString().split("T")[0],
+      start_date: formatDateOnly(dateBlock.startDate),
+      end_date: formatDateOnly(dateBlock.endDate),
       reason: dateBlock.reason,
     })
     .select("id")

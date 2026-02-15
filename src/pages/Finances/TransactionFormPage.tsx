@@ -8,6 +8,7 @@ import { Card, CardHeader, Button, Input, Select } from '../../components/UI';
 import { createTransaction } from '../../services/transactionService';
 import { getProperties } from '../../services/propertyService';
 import { Property, TransactionType, ExpenseCategory, IncomeCategory } from '../../types';
+import { formatDateOnly, parseDateOnly } from '../../utils/date';
 
 const transactionSchema = z.object({
   propertyId: z.string().min(1, 'Selecione uma propriedade'),
@@ -53,7 +54,7 @@ export default function TransactionFormPage() {
     defaultValues: {
       type: 'expense',
       amount: 0,
-      date: new Date().toISOString().split('T')[0],
+      date: formatDateOnly(new Date()),
     },
   });
 
@@ -77,7 +78,7 @@ export default function TransactionFormPage() {
       await createTransaction({
         ...data,
         category: data.category as ExpenseCategory | IncomeCategory,
-        date: new Date(data.date),
+        date: parseDateOnly(data.date),
       });
       navigate('/finances');
     } catch (error) {

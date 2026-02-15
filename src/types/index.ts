@@ -60,6 +60,8 @@ export type ReservationSource =
   | "booking"
   | "vrbo"
   | "direct"
+  | "whatsapp"
+  | "instagram"
   | "other";
 
 export interface Reservation {
