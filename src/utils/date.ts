@@ -13,7 +13,11 @@ export function parseDateOnly(value: string | Date): Date {
 
   if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
     const fallback = new Date(value);
-    return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+    return new Date(
+      fallback.getFullYear(),
+      fallback.getMonth(),
+      fallback.getDate(),
+    );
   }
 
   return new Date(year, month - 1, day);
